@@ -10,12 +10,22 @@ pub fn build(b: *std.Build) void {
     const append_extension = b.option(bool, "append-extension", "Auto-append file extension in SaveDialog on Linux") orelse false;
     const case_sensitive_filter = b.option(bool, "case-sensitive-filter", "Make filters case sensitive on Linux") orelse false;
 
+    // Capture the build options for the library to use.
+    const opts = b.addOptions();
+    opts.addOption(bool, "portal", use_portal);
+    opts.addOption(bool, "x11", use_x11);
+    opts.addOption(bool, "wayland", use_wayland);
+    opts.addOption(bool, "append_extension", append_extension);
+    opts.addOption(bool, "case_sensitive_filter", case_sensitive_filter);
+
     const znfd_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
         .link_libc = true,
         .link_libcpp = true,
+        .root_source_file = b.path("src/root.zig"),
     });
+    znfd_mod.addOptions("opts", opts);
     znfd_mod.addIncludePath(b.path("src/include"));
 
     // Platform-specific sources and dependencies

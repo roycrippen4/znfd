@@ -10,46 +10,46 @@ pub fn build(b: *std.Build) void {
     const append_extension = b.option(bool, "append-extension", "Auto-append file extension in SaveDialog on Linux") orelse false;
     const case_sensitive_filter = b.option(bool, "case-sensitive-filter", "Make filters case sensitive on Linux") orelse false;
 
-    const nfd_mod = b.createModule(.{
+    const znfd_mod = b.createModule(.{
         .target = target,
         .optimize = optimize,
         .link_libc = true,
         .link_libcpp = true,
     });
-    nfd_mod.addIncludePath(b.path("src/include"));
+    znfd_mod.addIncludePath(b.path("src/include"));
 
     // Platform-specific sources and dependencies
     const os_tag = target.result.os.tag;
     if (os_tag == .windows) {
-        nfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_win.cpp") });
-        nfd_mod.linkSystemLibrary("ole32", .{});
-        nfd_mod.linkSystemLibrary("uuid", .{});
-        nfd_mod.linkSystemLibrary("shell32", .{});
+        znfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_win.cpp") });
+        znfd_mod.linkSystemLibrary("ole32", .{});
+        znfd_mod.linkSystemLibrary("uuid", .{});
+        znfd_mod.linkSystemLibrary("shell32", .{});
     } else if (os_tag == .macos) {
-        nfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_cocoa.m") });
-        nfd_mod.linkFramework("AppKit", .{});
+        znfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_cocoa.m") });
+        znfd_mod.linkFramework("AppKit", .{});
     } else if (os_tag == .linux) {
         if (use_portal) {
-            nfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_portal.cpp") });
-            nfd_mod.linkSystemLibrary("dbus-1", .{});
-            nfd_mod.addCMacro("NFD_PORTAL", "1");
+            znfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_portal.cpp") });
+            znfd_mod.linkSystemLibrary("dbus-1", .{});
+            znfd_mod.addCMacro("NFD_PORTAL", "1");
         } else {
-            nfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_gtk.cpp") });
-            nfd_mod.linkSystemLibrary("gtk+-3.0", .{});
+            znfd_mod.addCSourceFile(.{ .file = b.path("src/nfd_gtk.cpp") });
+            znfd_mod.linkSystemLibrary("gtk+-3.0", .{});
         }
 
         if (append_extension) {
-            nfd_mod.addCMacro("NFD_APPEND_EXTENSION", "1");
+            znfd_mod.addCMacro("NFD_APPEND_EXTENSION", "1");
         }
         if (case_sensitive_filter) {
-            nfd_mod.addCMacro("NFD_CASE_SENSITIVE_FILTER", "1");
+            znfd_mod.addCMacro("NFD_CASE_SENSITIVE_FILTER", "1");
         }
         if (use_x11) {
-            nfd_mod.addCMacro("NFD_X11", "1");
+            znfd_mod.addCMacro("NFD_X11", "1");
         }
         if (use_wayland) {
-            nfd_mod.addCMacro("NFD_WAYLAND", "1");
-            nfd_mod.linkSystemLibrary("wayland-client", .{});
+            znfd_mod.addCMacro("NFD_WAYLAND", "1");
+            znfd_mod.linkSystemLibrary("wayland-client", .{});
 
             // Generate wayland protocol code from vendored XML
             const protocol_xml = b.path("src/xdg-foreign-unstable-v1.xml");
@@ -62,17 +62,17 @@ pub fn build(b: *std.Build) void {
             gen_code.addFileArg(protocol_xml);
             const code = gen_code.addOutputFileArg("xdg-foreign-unstable-v1.c");
 
-            nfd_mod.addCSourceFile(.{ .file = code });
-            nfd_mod.addIncludePath(header.dirname());
+            znfd_mod.addCSourceFile(.{ .file = code });
+            znfd_mod.addIncludePath(header.dirname());
         }
     }
 
-    const nfd = b.addLibrary(.{
+    const znfd = b.addLibrary(.{
         .linkage = .dynamic,
-        .name = "nfd",
-        .root_module = nfd_mod,
+        .name = "znfd",
+        .root_module = znfd_mod,
     });
-    b.installArtifact(nfd);
+    b.installArtifact(znfd);
 
     // Tests — each test is a small C program that opens a dialog
     const test_sources = [_][]const u8{
@@ -109,7 +109,7 @@ pub fn build(b: *std.Build) void {
         });
         exe_mod.addCSourceFile(.{ .file = b.path(src) });
         exe_mod.addIncludePath(b.path("src/include"));
-        exe_mod.linkLibrary(nfd);
+        exe_mod.linkLibrary(znfd);
 
         const exe = b.addExecutable(.{
             .name = name,

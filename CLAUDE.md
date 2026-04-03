@@ -21,8 +21,9 @@ znfd (Zig Native File Dialog) — a Zig port of [btzy/nativefiledialog-extended]
 - **Portal backend** (`src/portal.zig`): Fully ported. Talks to `org.freedesktop.portal.FileChooser` via D-Bus. `DBusError` has bitfields so a compatible `extern struct` is defined in the file. X11 window handle serialization works. Wayland handle serialization not yet implemented.
 - **Demo program** (`src/main.zig`): `zig build run` (GTK) or `zig build run -Dportal=true` (portal). Uses `@import("znfd")`.
 
+- **Windows backend** (`src/win32.zig`): Fully ported. Pure Zig COM interface definitions (no `@cImport`). Uses `IFileOpenDialog`/`IFileSaveDialog` via manually defined vtables. UTF-8↔UTF-16 conversion handled internally. Links `ole32`, `shell32`.
+
 ### Not Yet Ported
-- **Windows backend** (`src/win32.zig` — does not exist yet): Reference is `src/nfd_win.cpp`. Uses COM `IFileDialog`. UTF-16 internally, UTF-8 public API. Needs `ole32`, `uuid`, `shell32`.
 - **macOS backend** (`src/cocoa.zig` — does not exist yet): Reference is `src/nfd_cocoa.m`. Uses Cocoa `NSSavePanel`/`NSOpenPanel`.
 
 ### Features Not Yet Ported (all platforms)

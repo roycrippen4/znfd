@@ -17,16 +17,18 @@ pub fn build(b: *std.Build) void {
     opts.addOption(bool, "append_extension", append_extension);
     opts.addOption(bool, "case_sensitive_filter", case_sensitive_filter);
 
+    const os_tag = target.result.os.tag;
+    const use_dynamic = os_tag != .windows;
+
     const znfd_mod = b.addModule("znfd", .{
         .target = target,
         .optimize = optimize,
-        .link_libc = true,
+        .link_libc = if (os_tag == .linux) true else null,
         .root_source_file = b.path("src/root.zig"),
     });
     znfd_mod.addOptions("opts", opts);
 
     // Platform-specific dependencies
-    const os_tag = target.result.os.tag;
     if (os_tag == .windows) {
         znfd_mod.linkSystemLibrary("ole32", .{});
         znfd_mod.linkSystemLibrary("shell32", .{});
@@ -57,8 +59,10 @@ pub fn build(b: *std.Build) void {
         }
     }
 
+    const linkage: std.builtin.LinkMode = if (use_dynamic) .dynamic else .static;
+
     const znfd = b.addLibrary(.{
-        .linkage = .dynamic,
+        .linkage = linkage,
         .name = "znfd",
         .root_module = znfd_mod,
     });
@@ -74,7 +78,7 @@ pub fn build(b: *std.Build) void {
 
     const demo = b.addExecutable(.{
         .name = "demo",
-        .linkage = .dynamic,
+        .linkage = linkage,
         .root_module = demo_mod,
     });
     b.installArtifact(demo);

@@ -35,7 +35,7 @@ zig fetch --save https://github.com/roycrippen4/znfd/archive/refs/tags/v0.0.3.ta
 Then add it to your `build.zig`:
 
 ```zig
-const znfd = b.dependency("znfd", .{});
+const znfd = b.dependency("znfd", .{ .target = target, .optimize = optimize });
 exe.root_module.addImport("znfd", znfd.module("znfd"));
 ```
 

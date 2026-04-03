@@ -29,7 +29,7 @@ Features:
 Add `znfd` as a dependency:
 
 ```bash
-zig fetch --save https://github.com/roycrippen4/znfd/archive/refs/tags/v0.0.1.tar.gz
+zig fetch --save https://github.com/roycrippen4/znfd/archive/refs/tags/v0.0.2.tar.gz
 ```
 
 Then add it to your `build.zig`:

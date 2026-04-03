@@ -5,6 +5,7 @@ set -euo pipefail
 BRANCH="master"
 REMOTE="origin"
 FILE="build.zig.zon"
+README="README.md"
 TAG_PREFIX="v"
 TAG_MSG_PREFIX="Release v"
 DRY_RUN=false
@@ -138,14 +139,20 @@ case "${ans:-N}" in [yY]*) ;; *) die "Aborted" ;; esac
 
 # --- Execution ---
 
-# 1. Update file
+# 1. Update version in build.zig.zon and README.md
 info "Updating $FILE..."
 if [ "$DRY_RUN" = false ]; then
   sed -i.tmp -E "0,/(\.version[[:space:]]*=[[:space:]]*)\"[^\"]*\"/ s//\1\"$new_ver\"/" "$FILE"
   rm -f "${FILE}.tmp"
   zig fmt "$FILE"
+  if [ -f "$README" ]; then
+    info "Updating fetch URL in $README..."
+    sed -i.tmp -E "s|/tags/v[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz|/tags/${new_tag}.tar.gz|g" "$README"
+    rm -f "${README}.tmp"
+  fi
 else
   echo "[DRY-RUN] Update .version in $FILE and run zig fmt"
+  echo "[DRY-RUN] Update fetch URL in $README"
 fi
 
 # 2. Pre-push tag check
@@ -155,7 +162,7 @@ fi
 
 # 3. Git Operations
 info "Committing and Pushing..."
-run git add "$FILE"
+run git add "$FILE" "$README"
 run git commit -m "$msg"
 run git push "$REMOTE" "$BRANCH"
 

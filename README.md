@@ -1,4 +1,3 @@
-
 # Native File Dialog Extended (Zig Port)
 
 A Zig port of [btzy/nativefiledialog-extended](https://github.com/btzy/nativefiledialog-extended), which is itself based on [mlabbe/nativefiledialog](https://github.com/mlabbe/nativefiledialog).
@@ -25,9 +24,24 @@ Features:
 - Support for multiple selection (for file open and folder select dialogs)
 - Pure Zig — no C/C++ source files, no `@cImport` on Windows/macOS
 
+# Installation
+
+Add `znfd` as a dependency:
+
+```bash
+zig fetch --save https://github.com/roycrippen4/znfd/archive/refs/tags/v0.0.1.tar.gz
+```
+
+Then add it to your `build.zig`:
+
+```zig
+const znfd = b.dependency("znfd", .{});
+exe.root_module.addImport("znfd", znfd.module("znfd"));
+```
+
 # Usage
 
-Add `znfd` as a dependency via `build.zig.zon`, then:
+Then in your code:
 
 ```zig
 const znfd = @import("znfd");
@@ -82,7 +96,7 @@ A file filter is a pair of strings comprising the friendly name and the specific
 
 A wildcard filter is always added to every dialog.
 
-*Note: On macOS, the file dialogs do not have friendly names and there is no way to switch between filters, so the filter specifications are combined. The filter specification is also never explicitly shown to the user. This is usual macOS behaviour and users expect it.*
+_Note: On macOS, the file dialogs do not have friendly names and there is no way to switch between filters, so the filter specifications are combined. The filter specification is also never explicitly shown to the user. This is usual macOS behaviour and users expect it._
 
 # Building
 
@@ -104,29 +118,36 @@ Build options:
 ### Linux
 
 #### GTK (default)
+
 `libgtk-3-dev`
 
 #### Portal
+
 `libdbus-1-dev`
 
 ### macOS
+
 AppKit framework (ships with Xcode / Command Line Tools).
 
 **Note:** The macOS backend compiles but has not been tested on real hardware.
 
 ### Windows
+
 Windows SDK (ole32, shell32).
 
 # Platform-specific Quirks
 
 ### Windows
+
 - The `default_path` option is only respected if there is no recently used folder available. If there is a recently used folder, the dialog opens to that folder instead.
 - Relative paths are not supported.
 
 ### macOS
+
 - Uses the deprecated `setAllowedFileTypes:` API for file filtering. This still works on current macOS but may need updating if Apple removes it in a future release.
 
 ### Linux
+
 - Window parenting does not work on XWayland.
 - On Linux, the file extension is appended (if missing) when the user presses "Save". The appended file extension will remain visible even if the user then cancels an overwrite prompt.
 - Linux file filters are case-insensitive by default (via a glob pattern hack). Use `-Dcase-sensitive-filter=true` for case-sensitive filtering.

@@ -10,7 +10,6 @@ pub fn build(b: *std.Build) void {
     const append_extension = b.option(bool, "append-extension", "Auto-append file extension in SaveDialog on Linux") orelse false;
     const case_sensitive_filter = b.option(bool, "case-sensitive-filter", "Make filters case sensitive on Linux") orelse false;
 
-    // Capture the build options for the library to use.
     const opts = b.addOptions();
     opts.addOption(bool, "portal", use_portal);
     opts.addOption(bool, "x11", use_x11);
@@ -18,7 +17,7 @@ pub fn build(b: *std.Build) void {
     opts.addOption(bool, "append_extension", append_extension);
     opts.addOption(bool, "case_sensitive_filter", case_sensitive_filter);
 
-    const znfd_mod = b.createModule(.{
+    const znfd_mod = b.addModule("znfd", .{
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -43,7 +42,6 @@ pub fn build(b: *std.Build) void {
         if (use_wayland) {
             znfd_mod.linkSystemLibrary("wayland-client", .{});
 
-            // Generate wayland protocol code from vendored XML
             const protocol_xml = b.path("src/xdg-foreign-unstable-v1.xml");
 
             const gen_header = b.addSystemCommand(&.{ "wayland-scanner", "client-header" });

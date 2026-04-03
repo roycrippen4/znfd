@@ -17,21 +17,78 @@ A small library that portably invokes native file open, folder select and file s
 Features:
 
 - Support for Windows, macOS, and Linux (GTK, portal)
-- Friendly names for filters (e.g. `C/C++ Source files (*.c;*.cpp)` instead of `(*.c;*.cpp)`) on platforms that support it
-- Automatically append file extension on platforms where users expect it
+- Friendly names for filters (e.g. `Images (png,jpg)`) on platforms that support it
 - Support for setting a default folder path
-- Support for setting a default file name (e.g. `Untitled.c`)
+- Support for setting a default file name (e.g. `untitled.png`)
 - Support for setting a parent window handle so that the dialog stays on top
 - Consistent UTF-8 support on all platforms
 - Support for multiple selection (for file open and folder select dialogs)
-- No third party dependencies
+- Pure Zig — no C/C++ source files, no `@cImport` on Windows/macOS
+
+# Usage
+
+Add `znfd` as a dependency via `build.zig.zon`, then:
+
+```zig
+const znfd = @import("znfd");
+
+pub fn main() !void {
+    try znfd.init();
+    defer znfd.deinit();
+
+    const path = try znfd.open_dialog(std.heap.page_allocator, .{
+        .filter_list = &.{
+            .{ .name = "Images", .spec = "png,jpg,gif" },
+        },
+    });
+
+    if (path) |p| {
+        defer std.heap.page_allocator.free(p);
+        std.debug.print("Selected: {s}\n", .{p});
+    }
+}
+```
+
+See `src/main.zig` for a full demo that exercises every API function.
+
+## API
+
+```zig
+pub fn init() Error!void
+pub fn deinit() void
+pub fn open_dialog(allocator, OpenDialogArgs) Error!?[]const u8
+pub fn open_dialog_multiple(allocator, OpenDialogArgs) Error![]const []const u8
+pub fn save_dialog(allocator, SaveDialogArgs) Error!?[]const u8
+pub fn pick_folder(allocator, PickFolderArgs) Error!?[]const u8
+pub fn pick_folder_multiple(allocator, PickFolderArgs) Error![]const []const u8
+```
+
+- Returns `null` on cancel, `error.DialogError` on failure, path(s) on success.
+- Caller owns returned memory (allocated with the passed-in allocator).
+- All arg structs have defaults so callers can use `open_dialog(alloc, .{})`.
+
+## File Filter Syntax
+
+Files can be filtered by file extension groups:
+
+```zig
+const filters = &[_]znfd.FilterItem{
+    .{ .name = "Source code", .spec = "c,cpp,cc" },
+    .{ .name = "Headers", .spec = "h,hpp" },
+};
+```
+
+A file filter is a pair of strings comprising the friendly name and the specification (multiple file extensions are comma-separated).
+
+A wildcard filter is always added to every dialog.
+
+*Note: On macOS, the file dialogs do not have friendly names and there is no way to switch between filters, so the filter specifications are combined. The filter specification is also never explicitly shown to the user. This is usual macOS behaviour and users expect it.*
 
 # Building
 
-## Zig Build
-
 ```
 zig build
+zig build run    # run the demo
 ```
 
 Build options:
@@ -47,68 +104,43 @@ Build options:
 ### Linux
 
 #### GTK (default)
-Make sure `libgtk-3-dev` is installed on your system.
+`libgtk-3-dev`
 
 #### Portal
-Make sure `libdbus-1-dev` is installed on your system.
+`libdbus-1-dev`
 
 ### macOS
-On macOS, the AppKit and UniformTypeIdentifiers frameworks are required.
+AppKit framework (ships with Xcode / Command Line Tools).
+
+**Note:** The macOS backend compiles but has not been tested on real hardware.
 
 ### Windows
-On Windows, the Windows SDK is required (ole32, uuid, shell32).
+Windows SDK (ole32, shell32).
 
-# Usage
-
-See the `test` directory for example code.
-
-## File Filter Syntax
-
-Files can be filtered by file extension groups:
-
-```C
-nfdu8filteritem_t filters[2] = { { "Source code", "c,cpp,cc" }, { "Headers", "h,hpp" } };
-```
-
-A file filter is a pair of strings comprising the friendly name and the specification (multiple file extensions are comma-separated).
-
-A wildcard filter is always added to every dialog.
-
-*Note: On macOS, the file dialogs do not have friendly names and there is no way to switch between filters, so the filter specifications are combined (e.g. "c,cpp,cc,h,hpp"). The filter specification is also never explicitly shown to the user. This is usual macOS behaviour and users expect it.*
-
-*Note 2: You must ensure that the specification string is non-empty and that every file extension has at least one character. Otherwise, bad things might ensue (i.e. undefined behaviour).*
-
-*Note 3: On Linux, the file extension is appended (if missing) when the user presses down the "Save" button. The appended file extension will remain visible to the user, even if an overwrite prompt is shown and the user then presses "Cancel".*
-
-*Note 4: Linux is designed for case-sensitive file filters, but this is perhaps not what most users expect. A simple hack is used to make filters case-insensitive. To get case-sensitive filtering, use `-Dcase-sensitive-filter=true`.*
-
-## Using xdg-desktop-portal on Linux
-
-On Linux, you can use the portal implementation instead of GTK, which will open the "native" file chooser selected by the OS or customized by the user. The user must have `xdg-desktop-portal` and a suitable backend installed (this comes pre-installed with most common desktop distros), otherwise `NFD_ERROR` will be returned.
-
-To use the portal implementation, build with `-Dportal=true`.
-
-*Note: The folder picker is only supported on org.freedesktop.portal.FileChooser interface version >= 3, which corresponds to xdg-desktop-portal version >= 1.7.1. `NFD_PickFolder()` will query the interface version at runtime, and return `NFD_ERROR` if the version is too low.*
-
-## Platform-specific Quirks
+# Platform-specific Quirks
 
 ### Windows
-- The `defaultPath` option is only respected if there is no recently used folder available. If there is a recently used folder, the dialog opens to that folder instead.
+- The `default_path` option is only respected if there is no recently used folder available. If there is a recently used folder, the dialog opens to that folder instead.
 - Relative paths are not supported.
-- Windows virtual folders (e.g. "Documents", "Pictures") are supported via `defaultPath`.
 
 ### macOS
-- If the macOS deployment target is >= 11.0, the `allowedContentTypes` property is used instead of the deprecated `allowedFileTypes` for file filters. Custom file extensions need to be defined in your `Info.plist`.
+- Uses the deprecated `setAllowedFileTypes:` API for file filtering. This still works on current macOS but may need updating if Apple removes it in a future release.
 
 ### Linux
 - Window parenting does not work on XWayland.
+- On Linux, the file extension is appended (if missing) when the user presses "Save". The appended file extension will remain visible even if the user then cancels an overwrite prompt.
+- Linux file filters are case-insensitive by default (via a glob pattern hack). Use `-Dcase-sensitive-filter=true` for case-sensitive filtering.
+
+## Using xdg-desktop-portal on Linux
+
+On Linux, you can use the portal implementation instead of GTK, which will open the "native" file chooser selected by the OS or customized by the user. The user must have `xdg-desktop-portal` and a suitable backend installed (this comes pre-installed with most common desktop distros).
+
+Build with `-Dportal=true`.
 
 # Known Limitations
 
-- No support for Windows XP's legacy dialogs.
-- No Emscripten (WebAssembly) bindings.
 - GTK dialogs don't set the existing window as parent, so if users click the existing window while the dialog is open then the dialog will go behind it.
-- This library does not explicitly dispatch calls to the UI thread. Call NFDe from an appropriate UI thread.
+- This library does not dispatch calls to the UI thread. Call from an appropriate UI thread.
 
 # Credit
 

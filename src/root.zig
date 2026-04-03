@@ -27,13 +27,13 @@ const Result = enum {
 /// Windows uses UTF-16; all other platforms use UTF-8.
 const NativeChar = if (builtin.os.tag == .windows) u16 else u8;
 
-const FilterItem = struct {
+pub const FilterItem = struct {
     name: []const u8,
     spec: []const u8,
 };
 
 /// The native window handle type.
-const WindowHandleType = enum {
+pub const WindowHandleType = enum {
     /// Windows: handle is HWND (the Windows API typedefs this to void*)
     windows,
     /// Cocoa: handle is NSWindow*
@@ -47,25 +47,25 @@ const WindowHandleType = enum {
 /// The native window handle.
 /// If using a platform abstraction framework (e.g. SDL2), this should be
 /// obtained using the corresponding NFD glue header (e.g. nfd_sdl2.h).
-const WindowHandle = struct {
+pub const WindowHandle = struct {
     type: WindowHandleType,
     handle: *anyopaque,
 };
 
-const OpenDialogArgs = struct {
-    filter_list: []const FilterItem,
+pub const OpenDialogArgs = struct {
+    filter_list: []const FilterItem = &.{},
     default_path: ?[]const u8 = null,
     parent_window: ?WindowHandle = null,
 };
 
-const SaveDialogArgs = struct {
-    filter_list: []const FilterItem,
+pub const SaveDialogArgs = struct {
+    filter_list: []const FilterItem = .{},
     default_path: ?[]const u8 = null,
     default_name: ?[]const u8 = null,
     parent_window: ?WindowHandle = null,
 };
 
-const PickFolderArgs = struct {
+pub const PickFolderArgs = struct {
     default_path: ?[]const u8 = null,
     parent_window: ?WindowHandle = null,
 };
@@ -87,26 +87,26 @@ pub fn deinit() void {
 }
 
 /// Open a single file dialog. Returns the selected path, or null if cancelled.
-pub fn openDialog(allocator: std.mem.Allocator, args: OpenDialogArgs) Error!?[]const u8 {
-    return backend.openDialog(allocator, args);
+pub fn open_dialog(allocator: std.mem.Allocator, args: OpenDialogArgs) Error!?[]const u8 {
+    return backend.open_dialog(allocator, args);
 }
 
 /// Open a multi-file dialog. Returns a slice of selected paths.
-pub fn openDialogMultiple(allocator: std.mem.Allocator, args: OpenDialogArgs) Error![]const []const u8 {
-    return backend.openDialogMultiple(allocator, args);
+pub fn open_dialog_multiple(allocator: std.mem.Allocator, args: OpenDialogArgs) Error![]const []const u8 {
+    return backend.open_dialog_multiple(allocator, args);
 }
 
 /// Open a save dialog. Returns the selected path, or null if cancelled.
-pub fn saveDialog(allocator: std.mem.Allocator, args: SaveDialogArgs) Error!?[]const u8 {
-    return backend.saveDialog(allocator, args);
+pub fn save_dialog(allocator: std.mem.Allocator, args: SaveDialogArgs) Error!?[]const u8 {
+    return backend.save_dialog(allocator, args);
 }
 
 /// Open a single folder picker. Returns the selected path, or null if cancelled.
-pub fn pickFolder(allocator: std.mem.Allocator, args: PickFolderArgs) Error!?[]const u8 {
-    return backend.pickFolder(allocator, args);
+pub fn pick_folder(allocator: std.mem.Allocator, args: PickFolderArgs) Error!?[]const u8 {
+    return backend.pick_folder(allocator, args);
 }
 
 /// Open a multi-folder picker. Returns a slice of selected paths.
-pub fn pickFolderMultiple(allocator: std.mem.Allocator, args: PickFolderArgs) Error![]const []const u8 {
-    return backend.pickFolderMultiple(allocator, args);
+pub fn pick_folder_multiple(allocator: std.mem.Allocator, args: PickFolderArgs) Error![]const []const u8 {
+    return backend.pick_folder_multiple(allocator, args);
 }

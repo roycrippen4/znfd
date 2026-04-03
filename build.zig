@@ -84,6 +84,26 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(znfd);
 
+    // Demo executable
+    const demo_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    demo_mod.addImport("znfd", znfd_mod);
+
+    const demo = b.addExecutable(.{
+        .name = "demo",
+        .linkage = .dynamic,
+        .root_module = demo_mod,
+    });
+    b.installArtifact(demo);
+
+    const run_cmd = b.addRunArtifact(demo);
+    run_cmd.step.dependOn(b.getInstallStep());
+    const run_step = b.step("run", "Run the demo");
+    run_step.dependOn(&run_cmd.step);
+
     // Tests — each test is a small C program that opens a dialog
     const test_sources = [_][]const u8{
         "test/test_opendialog.c",

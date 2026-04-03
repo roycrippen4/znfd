@@ -4,55 +4,102 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Zig port of Native File Dialog Extended (NFDe) — a library that portably invokes native file open, save, and folder picker dialogs on Windows, macOS, and Linux. Personal project, not for external distribution.
+znfd (Zig Native File Dialog) — a Zig port of [btzy/nativefiledialog-extended](https://github.com/btzy/nativefiledialog-extended). Personal project, not for external distribution. The goal is an idiomatic Zig library importable via `build.zig.zon`.
 
-## Porting Goal
+## User Preferences
 
-Port the entire codebase from C/C++ to idiomatic Zig. No C ABI compatibility needed. The end result should be a Zig library importable into other Zig projects via `build.zig.zon`.
+- **Snake case everywhere**: Use `snake_case` for all function names, not `camelCase`. This is intentional — helps the user differentiate their code from library code.
+- No C ABI compatibility needed. No external consumers.
+- Prefer practical, idiomatic Zig solutions over compatibility shims.
 
-Key porting decisions:
-- Expose an idiomatic Zig API: error unions, optionals, slices — not the C-style `nfdresult_t` + global error string + manual `FreePath` pattern.
-- UTF-8 everywhere in the public API; Windows UTF-16 conversion is internal only. The `_U8`/`_N` split goes away.
-- Use `defer` for resource cleanup instead of RAII guard objects.
-- Zig can call C APIs directly (`@cImport`) for platform SDK calls (COM, Cocoa, GTK, D-Bus).
-- Each platform implementation file (`nfd_win.cpp`, `nfd_cocoa.m`, `nfd_gtk.cpp`, `nfd_portal.cpp`) maps roughly 1:1 to a Zig source file. The C/C++ sources are the reference.
+## Porting Status
+
+### Completed
+- **Build system**: `build.zig` replaces CMake. Build options passed via `@import("opts")`.
+- **Public API** (`src/root.zig`): Idiomatic Zig — error unions, optionals, slices. No `nfdresult_t`, no global error strings, no manual `FreePath`. All types are `pub`. Allocator passed by caller.
+- **GTK backend** (`src/gtk.zig`): Fully ported. Uses `@cImport("gtk/gtk.h")`. Window parenting works for X11 (Wayland parenting partial — sets display/screen but xdg-foreign export not wired up).
+- **Portal backend** (`src/portal.zig`): Fully ported. Talks to `org.freedesktop.portal.FileChooser` via D-Bus. `DBusError` has bitfields so a compatible `extern struct` is defined in the file. X11 window handle serialization works. Wayland handle serialization not yet implemented.
+- **Demo program** (`src/main.zig`): `zig build run` (GTK) or `zig build run -Dportal=true` (portal). Uses `@import("znfd")`.
+
+### Not Yet Ported
+- **Windows backend** (`src/win32.zig` — does not exist yet): Reference is `src/nfd_win.cpp`. Uses COM `IFileDialog`. UTF-16 internally, UTF-8 public API. Needs `ole32`, `uuid`, `shell32`.
+- **macOS backend** (`src/cocoa.zig` — does not exist yet): Reference is `src/nfd_cocoa.m`. Uses Cocoa `NSSavePanel`/`NSOpenPanel`.
+
+### Features Not Yet Ported (all platforms)
+- Case-insensitive file filters (original converts `"png"` to `"[pP][nN][gG]"` glob patterns)
+- Auto-append extension on save (GTK/portal)
+- Portal version check for folder picker (requires interface >= v3)
+- Wayland xdg-foreign surface export for window parenting (GTK + portal backends)
+
+## Architecture
+
+```
+src/root.zig          — Public API + comptime backend dispatch
+src/gtk.zig           — Linux GTK3 backend (via @cImport)
+src/portal.zig        — Linux xdg-desktop-portal backend (via @cImport of dbus/dbus.h)
+src/win32.zig         — Windows backend (TODO)
+src/cocoa.zig         — macOS backend (TODO)
+src/main.zig          — Demo/test program
+```
+
+Backend selection is comptime via `builtin.os.tag` and build options:
+```zig
+const backend = switch (builtin.os.tag) {
+    .linux => if (opts.portal) @import("portal.zig") else @import("gtk.zig"),
+    .windows => @import("win32.zig"),
+    .macos => @import("cocoa.zig"),
+    else => @compileError("Unsupported OS"),
+};
+```
+
+Build options are passed to source via `b.addOptions()` → `@import("opts")`.
+
+## Public API Shape
+
+```zig
+pub fn init() Error!void
+pub fn deinit() void
+pub fn open_dialog(allocator, OpenDialogArgs) Error!?[]const u8
+pub fn open_dialog_multiple(allocator, OpenDialogArgs) Error![]const []const u8
+pub fn save_dialog(allocator, SaveDialogArgs) Error!?[]const u8
+pub fn pick_folder(allocator, PickFolderArgs) Error!?[]const u8
+pub fn pick_folder_multiple(allocator, PickFolderArgs) Error![]const []const u8
+```
+
+- Returns `null` on cancel, `error.DialogError` on failure, path(s) on success.
+- Caller owns returned memory (allocated with the passed-in allocator).
+- All arg structs have defaults so callers can use `open_dialog(alloc, .{})`.
 
 ## Build Commands
 
 ```bash
-zig build
-
-# With options (Linux)
-zig build -Dportal=true        # xdg-desktop-portal instead of GTK
-zig build -Dwayland=false      # disable Wayland support
-zig build -Dx11=false           # disable X11 support
-zig build -Dappend-extension=true
-zig build -Dcase-sensitive-filter=true
+zig build                    # Build library + demo (GTK backend on Linux)
+zig build run                # Run demo
+zig build -Dportal=true      # Use xdg-desktop-portal instead of GTK
+zig build run -Dportal=true  # Run demo with portal backend
 ```
 
-Tests are GUI programs (they open native dialogs), not automated unit tests. Test binaries are in `zig-out/bin/`.
+## Key Implementation Notes
 
-## Architecture
+- **DBusError workaround** (portal.zig): D-Bus's `DBusError` struct has C bitfields that Zig can't represent via `@cImport`. A compatible `extern struct` is defined manually and cast via `@ptrCast`.
+- **GDK_IS_X11_DISPLAY workaround** (gtk.zig): The GDK type-check macros call extern functions at comptime which Zig can't do. Runtime `g_type_check_instance_is_a()` is used instead.
+- **GSList traversal** (gtk.zig): GTK returns `GSList*` for multi-select. Traversed via `node.*.data` / `node.*.next` since it's a `[*c]` pointer.
+- **Dynamic linkage**: The library and demo use `.linkage = .dynamic` because system libs (GTK, D-Bus) are shared libraries.
 
-Each platform has a single implementation file — no shared base class or vtable, just the same C API implemented per-platform:
+## C Reference Files
 
-- `src/nfd_win.cpp` — Windows via IFileDialog (COM). UTF-16 native, UTF-8 conversion layer.
-- `src/nfd_cocoa.m` — macOS via Cocoa NSSavePanel/NSOpenPanel.
-- `src/nfd_gtk.cpp` — Linux via GTK3.
-- `src/nfd_portal.cpp` — Linux via xdg-desktop-portal over D-Bus (alternative to GTK).
-- `src/nfd_linux_shared.hpp` — Shared Wayland display/xdg-exporter code used by both Linux backends.
-- `src/xdg-foreign-unstable-v1.xml` — Vendored Wayland protocol definition for window handle export.
-
-Public API is in `src/include/nfd.h`. Every dialog function has `_U8` (UTF-8) and `_N` (native encoding) variants, plus `_With` variants that take a struct of arguments. On non-Windows platforms, `_N` is an alias for `_U8`.
+The original C/C++ implementations are still in the repo as reference:
+- `src/nfd_win.cpp` — Windows (COM IFileDialog)
+- `src/nfd_cocoa.m` — macOS (Cocoa NSSavePanel/NSOpenPanel)
+- `src/nfd_gtk.cpp` — Linux GTK3
+- `src/nfd_portal.cpp` — Linux xdg-desktop-portal over D-Bus
+- `src/nfd_linux_shared.hpp` — Shared Wayland/X11 code
+- `src/include/nfd.h` — Original C API (reference for what functions exist)
+- `src/include/nfd.hpp` — C++ wrapper (not relevant to Zig port)
 
 ## Platform Dependencies
 
-- **Windows:** Windows SDK only (ole32, uuid, shell32)
+- **Windows:** Windows SDK (ole32, uuid, shell32)
 - **macOS:** AppKit framework (+ UniformTypeIdentifiers on macOS 11+)
-- **Linux GTK:** libgtk-3-dev
+- **Linux GTK:** libgtk-3-dev, optionally libwayland-dev + wayland-scanner
 - **Linux Portal:** libdbus-1-dev
-- **Linux Wayland:** libwayland-dev + `wayland-scanner` (protocol XML is vendored in `src/`)
-
-## Error Handling Pattern (C reference — to be replaced)
-
-All dialog functions return `nfdresult_t` (`NFD_OKAY`, `NFD_CANCEL`, `NFD_ERROR`). On error, call `NFD_GetError()` for a description string. Callers must free returned paths with `NFD_FreePath*()`. The Zig port should replace this with error unions and optionals.

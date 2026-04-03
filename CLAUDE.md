@@ -23,8 +23,7 @@ znfd (Zig Native File Dialog) — a Zig port of [btzy/nativefiledialog-extended]
 
 - **Windows backend** (`src/win32.zig`): Fully ported. Pure Zig COM interface definitions (no `@cImport`). Uses `IFileOpenDialog`/`IFileSaveDialog` via manually defined vtables. UTF-8↔UTF-16 conversion handled internally. Links `ole32`, `shell32`.
 
-### Not Yet Ported
-- **macOS backend** (`src/cocoa.zig` — does not exist yet): Reference is `src/nfd_cocoa.m`. Uses Cocoa `NSSavePanel`/`NSOpenPanel`.
+- **macOS backend** (`src/cocoa.zig`): Fully ported but **untested** (no Mac available). Pure Zig using ObjC runtime directly (`objc_msgSend`, `objc_getClass`, `sel_registerName`). No `@cImport`. Uses `NSOpenPanel`/`NSSavePanel` via typed message-send wrappers. File type filtering via `setAllowedFileTypes:`. Links AppKit framework.
 
 ### Features Not Yet Ported (all platforms)
 - Case-insensitive file filters (original converts `"png"` to `"[pP][nN][gG]"` glob patterns)
@@ -38,8 +37,8 @@ znfd (Zig Native File Dialog) — a Zig port of [btzy/nativefiledialog-extended]
 src/root.zig          — Public API + comptime backend dispatch
 src/gtk.zig           — Linux GTK3 backend (via @cImport)
 src/portal.zig        — Linux xdg-desktop-portal backend (via @cImport of dbus/dbus.h)
-src/win32.zig         — Windows backend (TODO)
-src/cocoa.zig         — macOS backend (TODO)
+src/win32.zig         — Windows backend (COM vtables)
+src/cocoa.zig         — macOS backend (ObjC runtime)
 src/main.zig          — Demo/test program
 ```
 
@@ -87,20 +86,9 @@ zig build run -Dportal=true  # Run demo with portal backend
 - **GSList traversal** (gtk.zig): GTK returns `GSList*` for multi-select. Traversed via `node.*.data` / `node.*.next` since it's a `[*c]` pointer.
 - **Dynamic linkage**: The library and demo use `.linkage = .dynamic` because system libs (GTK, D-Bus) are shared libraries.
 
-## C Reference Files
-
-The original C/C++ implementations are still in the repo as reference:
-- `src/nfd_win.cpp` — Windows (COM IFileDialog)
-- `src/nfd_cocoa.m` — macOS (Cocoa NSSavePanel/NSOpenPanel)
-- `src/nfd_gtk.cpp` — Linux GTK3
-- `src/nfd_portal.cpp` — Linux xdg-desktop-portal over D-Bus
-- `src/nfd_linux_shared.hpp` — Shared Wayland/X11 code
-- `src/include/nfd.h` — Original C API (reference for what functions exist)
-- `src/include/nfd.hpp` — C++ wrapper (not relevant to Zig port)
-
 ## Platform Dependencies
 
-- **Windows:** Windows SDK (ole32, uuid, shell32)
-- **macOS:** AppKit framework (+ UniformTypeIdentifiers on macOS 11+)
+- **Windows:** Windows SDK (ole32, shell32)
+- **macOS:** AppKit framework
 - **Linux GTK:** libgtk-3-dev, optionally libwayland-dev + wayland-scanner
 - **Linux Portal:** libdbus-1-dev

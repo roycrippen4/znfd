@@ -45,8 +45,8 @@ pub const WindowHandleType = enum {
 };
 
 /// The native window handle.
-/// If using a platform abstraction framework (e.g. SDL2), this should be
-/// obtained using the corresponding NFD glue header (e.g. nfd_sdl2.h).
+/// If using a platform abstraction framework (e.g. SDL2), obtain the
+/// native handle through that framework's API.
 pub const WindowHandle = struct {
     type: WindowHandleType,
     handle: *anyopaque,
@@ -59,7 +59,7 @@ pub const OpenDialogArgs = struct {
 };
 
 pub const SaveDialogArgs = struct {
-    filter_list: []const FilterItem = .{},
+    filter_list: []const FilterItem = &.{},
     default_path: ?[]const u8 = null,
     default_name: ?[]const u8 = null,
     parent_window: ?WindowHandle = null,

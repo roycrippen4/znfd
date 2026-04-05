@@ -5,27 +5,30 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const opts = @import("opts");
+const is_linux = builtin.os.tag == .linux;
 
-const backend = switch (builtin.os.tag) {
-    .linux => if (opts.portal) @import("portal.zig") else @import("gtk.zig"),
+const linux = if (is_linux) struct {
+    const gtk = @import("gtk.zig");
+    const portal = @import("portal.zig");
+} else struct {};
+
+const native_backend = switch (builtin.os.tag) {
     .windows => @import("win32.zig"),
     .macos => @import("cocoa.zig"),
-    else => @compileError("Unsupported OS"),
-};
-
-const Result = enum {
-    // TODO: Remove this later and have the function signature return an error
-    @"error",
-    /// User pressed ok or successful return
-    okay,
-    /// User pressed cancel
-    cancel,
+    else => struct {},
 };
 
 /// Internal native character type for platform API calls.
 /// Windows uses UTF-16; all other platforms use UTF-8.
 const NativeChar = if (builtin.os.tag == .windows) u16 else u8;
+
+pub const LinuxBackend = enum { gtk, portal };
+
+pub const InitOptions = struct {
+    linux_backend: LinuxBackend = .gtk,
+};
+
+var linux_backend: LinuxBackend = .gtk;
 
 pub const FilterItem = struct {
     name: []const u8,
@@ -56,6 +59,7 @@ pub const OpenDialogArgs = struct {
     filter_list: []const FilterItem = &.{},
     default_path: ?[]const u8 = null,
     parent_window: ?WindowHandle = null,
+    case_sensitive_filter: bool = false,
 };
 
 pub const SaveDialogArgs = struct {
@@ -63,6 +67,7 @@ pub const SaveDialogArgs = struct {
     default_path: ?[]const u8 = null,
     default_name: ?[]const u8 = null,
     parent_window: ?WindowHandle = null,
+    append_extension: bool = false,
 };
 
 pub const PickFolderArgs = struct {
@@ -77,36 +82,79 @@ pub const Error = error{
 
 /// Initialize the platform library (e.g. GTK, COM, D-Bus).
 /// Must be called before any dialog functions.
-pub fn init() Error!void {
-    return backend.init();
+pub fn init(options: InitOptions) Error!void {
+    if (is_linux) {
+        linux_backend = options.linux_backend;
+        return switch (linux_backend) {
+            .gtk => linux.gtk.init(),
+            .portal => linux.portal.init(),
+        };
+    }
+    return native_backend.init();
 }
 
 /// Deinitialize the platform library.
 pub fn deinit() void {
-    backend.deinit();
+    if (is_linux) {
+        return switch (linux_backend) {
+            .gtk => linux.gtk.deinit(),
+            .portal => linux.portal.deinit(),
+        };
+    }
+    return native_backend.deinit();
 }
 
 /// Open a single file dialog. Returns the selected path, or null if cancelled.
 pub fn open_dialog(allocator: std.mem.Allocator, args: OpenDialogArgs) Error!?[]const u8 {
-    return backend.open_dialog(allocator, args);
+    if (is_linux) {
+        return switch (linux_backend) {
+            .gtk => linux.gtk.open_dialog(allocator, args),
+            .portal => linux.portal.open_dialog(allocator, args),
+        };
+    }
+    return native_backend.open_dialog(allocator, args);
 }
 
 /// Open a multi-file dialog. Returns a slice of selected paths.
 pub fn open_dialog_multiple(allocator: std.mem.Allocator, args: OpenDialogArgs) Error![]const []const u8 {
-    return backend.open_dialog_multiple(allocator, args);
+    if (is_linux) {
+        return switch (linux_backend) {
+            .gtk => linux.gtk.open_dialog_multiple(allocator, args),
+            .portal => linux.portal.open_dialog_multiple(allocator, args),
+        };
+    }
+    return native_backend.open_dialog_multiple(allocator, args);
 }
 
 /// Open a save dialog. Returns the selected path, or null if cancelled.
 pub fn save_dialog(allocator: std.mem.Allocator, args: SaveDialogArgs) Error!?[]const u8 {
-    return backend.save_dialog(allocator, args);
+    if (is_linux) {
+        return switch (linux_backend) {
+            .gtk => linux.gtk.save_dialog(allocator, args),
+            .portal => linux.portal.save_dialog(allocator, args),
+        };
+    }
+    return native_backend.save_dialog(allocator, args);
 }
 
 /// Open a single folder picker. Returns the selected path, or null if cancelled.
 pub fn pick_folder(allocator: std.mem.Allocator, args: PickFolderArgs) Error!?[]const u8 {
-    return backend.pick_folder(allocator, args);
+    if (is_linux) {
+        return switch (linux_backend) {
+            .gtk => linux.gtk.pick_folder(allocator, args),
+            .portal => linux.portal.pick_folder(allocator, args),
+        };
+    }
+    return native_backend.pick_folder(allocator, args);
 }
 
 /// Open a multi-folder picker. Returns a slice of selected paths.
 pub fn pick_folder_multiple(allocator: std.mem.Allocator, args: PickFolderArgs) Error![]const []const u8 {
-    return backend.pick_folder_multiple(allocator, args);
+    if (is_linux) {
+        return switch (linux_backend) {
+            .gtk => linux.gtk.pick_folder_multiple(allocator, args),
+            .portal => linux.portal.pick_folder_multiple(allocator, args),
+        };
+    }
+    return native_backend.pick_folder_multiple(allocator, args);
 }

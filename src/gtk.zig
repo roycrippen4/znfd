@@ -1,8 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const opts = @import("opts");
-
 const root = @import("root.zig");
 const Error = root.Error;
 const FilterItem = root.FilterItem;
@@ -13,12 +11,8 @@ const WindowHandle = root.WindowHandle;
 
 const c = @cImport({
     @cInclude("gtk/gtk.h");
-    if (opts.x11) {
-        @cInclude("gdk/gdkx.h");
-    }
-    if (opts.wayland) {
-        @cInclude("gdk/gdkwayland.h");
-    }
+    @cInclude("gdk/gdkx.h");
+    @cInclude("gdk/gdkwayland.h");
 });
 
 pub fn init() Error!void {
@@ -115,12 +109,8 @@ pub fn pick_folder_multiple(allocator: std.mem.Allocator, args: PickFolderArgs) 
 fn run_dialog_with_parent(widget: *c.GtkWidget, parent_window: ?WindowHandle) c.gint {
     if (parent_window) |parent| {
         switch (parent.type) {
-            .x11 => if (comptime opts.x11) {
-                set_parent_x11(widget, parent.handle);
-            },
-            .wayland => if (comptime opts.wayland) {
-                set_parent_wayland(widget, parent.handle);
-            },
+            .x11 => set_parent_x11(widget, parent.handle),
+            .wayland => set_parent_wayland(widget, parent.handle),
             else => {},
         }
     }
@@ -129,14 +119,12 @@ fn run_dialog_with_parent(widget: *c.GtkWidget, parent_window: ?WindowHandle) c.
 }
 
 fn is_x11_display(display: *c.GdkDisplay) bool {
-    if (comptime !opts.x11) return false;
     // Runtime GObject type check — equivalent to GDK_IS_X11_DISPLAY macro
     const x11_type = c.gdk_x11_display_get_type();
     return c.g_type_check_instance_is_a(@ptrCast(@alignCast(display)), x11_type) != 0;
 }
 
 fn is_wayland_display(display: *c.GdkDisplay) bool {
-    if (comptime !opts.wayland) return false;
     const wayland_type = c.gdk_wayland_display_get_type();
     return c.g_type_check_instance_is_a(@ptrCast(@alignCast(display)), wayland_type) != 0;
 }
@@ -168,8 +156,6 @@ fn find_or_open_display(backend_name: [*:0]const u8, comptime check_fn: fn (*c.G
 }
 
 fn set_parent_x11(widget: *c.GtkWidget, handle: *anyopaque) void {
-    if (comptime !opts.x11) return;
-
     const x11_display = find_or_open_display("x11", is_x11_display) orelse return;
     const screen = c.gdk_display_get_default_screen(x11_display) orelse return;
     c.gtk_window_set_screen(@ptrCast(@alignCast(widget)), screen);
@@ -183,8 +169,6 @@ fn set_parent_x11(widget: *c.GtkWidget, handle: *anyopaque) void {
 }
 
 fn set_parent_wayland(widget: *c.GtkWidget, handle: *anyopaque) void {
-    if (comptime !opts.wayland) return;
-
     const wayland_display = find_or_open_display("wayland", is_wayland_display) orelse return;
     const screen = c.gdk_display_get_default_screen(wayland_display) orelse return;
     c.gtk_window_set_screen(@ptrCast(@alignCast(widget)), screen);

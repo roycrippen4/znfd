@@ -1,7 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const root = @import("root.zig");
-const opts = @import("opts");
 
 const c = @cImport({
     @cInclude("dbus/dbus.h");
